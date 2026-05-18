@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caja Registradora Local</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background: #121212; 
+            color: white; 
+            padding: 20px; 
+            margin: 0;
+        }
+        h2 { margin-bottom: 5px; }
+        p { color: #aaa; margin-bottom: 20px; }
+       
+        #reader {
+            width: 100%;
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            color: black;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+       
+        #reader button {
+            background: #007AFF; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            margin: 10px; 
+            cursor: pointer;
+        }
+        #status { 
+            margin-top: 30px; 
+            font-size: 1.5em; 
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Caja Registradora</h2>
+    <p>Apunta la cámara al código QR del producto</p>
+
+    <div id="reader"></div>
+    
+    <div id="status">Esperando escaneo...</div>
+    
+    <script>
+        const status = document.getElementById('status');
+        let ultimoEscaneado = ""; 
+
+        
+        function onScanSuccess(textoEscaneado, decodedResult) {
+            
+            if (textoEscaneado === ultimoEscaneado) return;
+            ultimoEscaneado = textoEscaneado;
+            setTimeout(() => ultimoEscaneado = "", 3000); 
+
+            status.innerHTML = "<span style='color:#f1c40f'>⏳ Procesando...</span>";
+
+           
+            let codigoLimpio = textoEscaneado;
+            if (textoEscaneado.includes('=')) {
+                codigoLimpio = textoEscaneado.split('=').pop(); 
+            }
+
+            
+            fetch('/api/escaner/' + codigoLimpio)
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) {
+                        // Si lo encuentra, muestra el nombre del producto en verde
+                        status.innerHTML = `<b style='color:#2ecc71'>✅ ¡${data.data.NOMBRE} ENVIADO!</b>`;
+                    } else {
+                        status.innerHTML = "<b style='color:#e74c3c'>❌ CÓDIGO NO REGISTRADO</b>";
+                    }
+                })
+                .catch(err => {
+                    status.innerHTML = "<b style='color:#e74c3c'>❌ Error de conexión al servidor</b>";
+                });
+        }
+
+    
+        function onScanFailure(error) {
+         
+        }
+
+      
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            false
+        );
+        
+       
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+</body>
+</html>

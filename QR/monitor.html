@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pantalla Principal</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        #monitor { background: white; padding: 50px; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 500px; }
+        .precio { font-size: 5em; color: #27ae60; font-weight: bold; margin: 20px 0; }
+        h1 { font-size: 3em; color: #333; margin: 0; }
+    </style>
+</head>
+<body>
+    <div id="monitor">
+        <h2 style="color: #ccc;">ESPERANDO PRODUCTO...</h2>
+    </div>
+
+    <script>
+        function actualizar() {
+            fetch('/api/ultimo-producto')
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success) {
+                        const p = data.data;
+                        document.getElementById('monitor').innerHTML = `
+                            <h1>${p.NOMBRE}</h1>
+                            <div class="precio">$${p.PRECIO}</div>
+                            <p style="font-size: 1.5em; color: #666;">Stock: ${p.STOCK} pzs</p>
+                        `;
+                    }
+                });
+        }
+        setInterval(actualizar, 1000); // Revisa cambios cada segundo
+    </script>
+</body>
+</html>
