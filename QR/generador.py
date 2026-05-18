@@ -1,43 +1,74 @@
-import qrcode
+import os
 import sqlite3
-import re
+import qrcode
 
-base_url = "https://slingshot-atrium-stubble.ngrok-free.dev/escaner.html?codigo="
 
-# 2. Conectar directamente a tu base de datos
-try:
-    conexion = sqlite3.connect('Abarrotesmigrao.db')
-    cursor = conexion.cursor()
+def generar_qrs():
+    # Rutas relativas para asegurar portabilidad
+    db_path = os.path.join(os.path.dirname(__file__), "Abarrotesmigrao.db")
+    output_dir = "qrs_productos"
 
-    # 3. Extraer el nombre y el código de barras de los 46 productos
-    cursor.execute("SELECT NOMBRE, CODIGO_BARRAS FROM PRODUCTO")
-    productos = cursor.fetchall()
+    # Crear la carpeta de salida si no existe
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"📁 Carpeta creada: {output_dir}")
 
-    print(f"¡Base de datos conectada! Se encontraron {len(productos)} productos.")
-    print("-" * 50)
+    conn = None
+    try:
+        # Conexión a la base de datos
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
-    # 4. Generar un QR para cada uno 
-    for producto in productos:
-        nombre = str(producto[0])
-        codigo = str(producto[1])
-        
-       
-        if codigo and codigo != "None" and codigo != "":
-            url_final = base_url + codigo
-            img = qrcode.make(url_final)
-            
-            
-            nombre_limpio = re.sub(r'[\\/*?:"<>|]', "", nombre).strip()
-            nombre_archivo = f"QR_{nombre_limpio}.png"
-            
+        # Seleccionamos los códigos y nombres de la tabla PRODUCTO
+        cursor.execute("SELECT codigo_barras, nombre FROM PRODUCTO")
+        productos = cursor.fetchall()
+
+        if not productos:
+            print("⚠️ No se encontraron productos en la tabla PRODUCTO.")
+            return
+
+        print(f"📦 Se encontraron {len(productos)} productos. Generando QRs...")
+
+        for codigo_barras, nombre in productos:
+            if not codigo_barras:
+                continue
+
+            # Limpiar el nombre para evitar caracteres inválidos en el archivo final
+            nombre_seguro = "".join(
+                c for c in str(nombre) if c.isalnum() or c in (" ", "_", "-")
+            ).rstrip()
+            nombre_archivo = (
+                f"{output_dir}/{codigo_barras}_{nombre_seguro.replace(' ', '_')}.png"
+            )
+
+            # Configuración del generador QR
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+
+            # El QR ahora contiene únicamente el código de barras bruto
+            qr.add_data(str(codigo_barras))
+            qr.make(fit=True)
+
+            # Crear y guardar la imagen
+            img = qr.make_image(fill_color="black", back_color="white")
             img.save(nombre_archivo)
-            print(f"✅ Generado: {nombre_archivo}")
-        else:
-            print(f"Saltando '{nombre}' (No tiene código de barras registrado)")
+            print(f"✅ QR Generado: {nombre_archivo}")
 
-    conexion.close()
-    print("-" * 50)
-    print("✨ ¡Todos los códigos QR han sido generados con éxito! ✨")
+        print("\n🎉 ¡Proceso terminado con éxito!")
 
-except sqlite3.Error as error:
-    print("❌ Error al conectar con la base de datos SQLite:", error)
+    except sqlite3.Error as e:
+        print(f"❌ Error de SQLite: {e}")
+    except Exception as e:
+        print(f"❌ Ocurrió un error inesperado: {e}")
+    finally:
+        if conn:
+            conn.close()
+            print("💾 Conexión a la base de datos cerrada de forma segura.")
+
+
+if __name__ == "__main__":
+    generar_qrs()

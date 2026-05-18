@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Caja Registradora Local</title>
+    <title>Caja Registradora Local - Escáner</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { 
@@ -40,7 +40,7 @@
         }
         #status { 
             margin-top: 30px; 
-            font-size: 1.5em; 
+            font-size: 1.4em; 
             height: 50px;
         }
     </style>
@@ -57,50 +57,53 @@
         const status = document.getElementById('status');
         let ultimoEscaneado = ""; 
 
-        
+        // 🛠️ ACTUALIZA ESTA IP CON LA DE TU PC (REVISA CON 'ipconfig')
+        const IP_SERVIDOR = "192.168.0.10"; 
+        const PUERTO_SSL = "3001";
+
         function onScanSuccess(textoEscaneado, decodedResult) {
-            
+            // Evita lecturas masivas del mismo código por 3 segundos
             if (textoEscaneado === ultimoEscaneado) return;
             ultimoEscaneado = textoEscaneado;
             setTimeout(() => ultimoEscaneado = "", 3000); 
 
-            status.innerHTML = "<span style='color:#f1c40f'>⏳ Procesando...</span>";
+            status.innerHTML = "<span style='color:#f1c40f'>⏳ Procesando escaneo...</span>";
 
-           
-            let codigoLimpio = textoEscaneado;
-            if (textoEscaneado.includes('=')) {
-                codigoLimpio = textoEscaneado.split('=').pop(); 
-            }
-
+            // Al usar QRs limpios, enviamos el texto directamente en la URL
+            const urlFinal = `https://${IP_SERVIDOR}:${PUERTO_SSL}/api/escanear/${textoEscaneado}`;
             
-            fetch('/api/escaner/' + codigoLimpio)
-                .then(res => res.json())
+            fetch(urlFinal)
+                .then(res => {
+                    if (res.status === 404) {
+                        throw new Error('NOT_FOUND');
+                    }
+                    if (!res.ok) {
+                        throw new Error('SERVER_ERROR');
+                    }
+                    return res.json();
+                })
                 .then(data => {
-                    if(data.success) {
-                        // Si lo encuentra, muestra el nombre del producto en verde
-                        status.innerHTML = `<b style='color:#2ecc71'>✅ ¡${data.data.NOMBRE} ENVIADO!</b>`;
+                    // Esto te abrirá una ventana emergente en el celular mostrando el JSON real que llega
+                    // alert(JSON.stringify(data)); 
+
+                    if (data && data.success && data.producto && data.producto.nombre) {
+                        status.innerHTML = `<b style='color:#2ecc71'>✅ ¡${data.producto.nombre.toUpperCase()} ENVIADO!</b>`;
                     } else {
-                        status.innerHTML = "<b style='color:#e74c3c'>❌ CÓDIGO NO REGISTRADO</b>";
+                        status.innerHTML = "<b style='color:#e74c3c'>❌ RESPUESTA INVÁLIDA DEL SERVIDOR</b>";
                     }
                 })
-                .catch(err => {
-                    status.innerHTML = "<b style='color:#e74c3c'>❌ Error de conexión al servidor</b>";
-                });
         }
 
-    
         function onScanFailure(error) {
-         
+            // Se mantiene vacío para silenciar logs continuos de enfoque de cámara
         }
 
-      
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
-            { fps: 10, qrbox: {width: 250, height: 250} },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
             false
         );
         
-       
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
 </body>
