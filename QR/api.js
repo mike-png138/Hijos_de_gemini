@@ -1,81 +1,79 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 const cors = require('cors');
-const { 
-    buscarProductoPorCodigo, 
-    agregarProducto, 
-    insertarProducto, 
-    reacomodarlos 
-} = require('./db');
 
 const app = express();
-app.use(cors());
+const server = http.createServer(app);
+
+// 🛠️ Configuración de CORS para permitir peticiones seguras desde el celular
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
-app.use(express.static(__dirname)); 
+app.use(express.static(path.join(__dirname, '.'))); 
 
-// 1. Variable global para guardar el último producto que leyó el teléfonos
-let ultimoProductoEscaneado = null; 
-
-//  Leer código de barras desde el teléfono
-app.get('/api/escaner/:codigo', async (req, res) => {
-    try {
-        const codigo = req.params.codigo;
-        const producto = await buscarProductoPorCodigo(codigo);
-        
-        if (producto) {
-            // 2. NUEVO: Guardamos el producto en la memoria del servidor para que el monitor lo vea
-            ultimoProductoEscaneado = producto; 
-            
-            res.json({ success: true, data: producto });
-        } else {
-            res.status(404).json({ success: false, message: 'Producto no encontrado' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// 3. Se agrega para monitor 
-app.get('/api/ultimo-producto', (req, res) => {
-    if (ultimoProductoEscaneado) {
-        res.json({ success: true, data: ultimoProductoEscaneado });
-    } else {
-        res.json({ success: false, message: 'Aún no hay productos' });
-    }
-});
-
-// Endpoint 2: Agregar producto nuevo
-app.post('/api/productos/agregar', async (req, res) => {
-    try {
-        const { nombre, precio, stock, id_proveedor, codigo_barras } = req.body;
-        const id = await agregarProducto(nombre, precio, stock, id_proveedor, codigo_barras);
-        res.json({ success: true, message: 'Producto agregado', id: id });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// Endpoint 3: Insertar producto 
-app.post('/api/productos/insertar', async (req, res) => {
-    try {
-        const id = await insertarProducto(req.body);
-        res.json({ success: true, message: 'Producto insertado', id: id });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-
-app.put('/api/productos/reacomodar', async (req, res) => {
-    try {
-        const { id_producto, nuevo_stock } = req.body;
-        const cambios = await reacomodarlos(id_producto, nuevo_stock);
-        res.json({ success: true, message: `Productos reacomodados. Filas afectadas: ${cambios}` });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+// Instancia de Socket.io
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
     }
 });
 
 const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor API corriendo en el puerto ${PORT}`);
+const DB_PATH = path.join(__dirname, 'Abarrotesmigrao.db');
+
+// Conexión a la Base de Datos SQLite
+const db = new sqlite3.Database(DB_PATH, (err) => {
+    if (err) console.error('❌ Error al conectar a SQLite:', err.message);
+    else console.log('💾 Conectado exitosamente a Abarrotesmigrao.db');
+});
+
+// Canal de WebSockets
+io.on('connection', (socket) => {
+    console.log(`🔌 Cliente WebSocket conectado: ${socket.id}`);
+    socket.on('disconnect', () => {
+        console.log(`❌ Cliente WebSocket desconectado: ${socket.id}`);
+    });
+});
+
+// 🌐 Endpoint del Escáner
+app.get('/api/escanear/:codigo', (req, res) => {
+    const codigoBarras = req.params.codigo;
+
+    // 🔥 SOLUCIÓN: Usamos "AS" para mapear las columnas en mayúsculas a minúsculas en el JSON de salida
+    const query = `SELECT NOMBRE AS nombre, PRECIO AS precio, STOCK AS stock FROM PRODUCTO WHERE CODIGO_BARRAS = ?`;
+    
+    db.get(query, [codigoBarras], (err, producto) => {
+        if (err) {
+            console.error('❌ Error en consulta SQL:', err.message);
+            return res.status(500).json({ success: false, error: err.message });
+        }
+        
+        if (!producto) {
+            console.log(`⚠️ Código no registrado: ${codigoBarras}`);
+            io.emit('producto-no-encontrado', { codigo: codigoBarras });
+            return res.status(404).json({ success: false, status: "No encontrado", codigo: codigoBarras });
+        }
+
+        console.log(`✅ Producto encontrado: ${producto.nombre}`); 
+        // Emitir los datos en tiempo real al monitor.html (irá en minúsculas)
+        io.emit('nuevo-producto-escaneado', producto);
+
+        // Responder con éxito al celular
+        return res.json({ success: true, status: "Escaneado con éxito", producto });
+    });
+});
+
+
+// Levantar el servidor unificado
+server.listen(PORT, () => {
+    console.log(`🚀 Servidor Express corriendo en http://localhost:${PORT}`);
+    console.log(`🔒 Recuerda levantar el puente SSL proxy en el puerto 3001 para el celular`);
 });
