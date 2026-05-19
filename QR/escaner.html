@@ -2,109 +2,650 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Caja Registradora Local - Escáner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>POS Escáner Inalámbrico</title>
+    
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body { 
-            font-family: sans-serif; 
-            text-align: center; 
-            background: #121212; 
-            color: white; 
-            padding: 20px; 
+        /* --- ARQUITECTURA MÓVIL (CERO SCROLL) --- */
+        * {
+            box-sizing: border-box;
             margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
-        h2 { margin-bottom: 5px; }
-        p { color: #aaa; margin-bottom: 20px; }
-       
-        #reader {
-            width: 100%;
-            max-width: 400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0d0d12;
+            color: #f3f4f6;
+            height: 100vh;
+            height: -webkit-fill-available; /* Corrección de altura elástica para Safari móvil */
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
-            color: black;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            user-select: none;
         }
-       
-        #reader button {
-            background: #007AFF; 
-            color: white; 
-            border: none; 
-            padding: 10px 20px; 
-            border-radius: 8px; 
-            font-weight: bold; 
-            margin: 10px; 
+
+        /* --- HEADER MINIMALISTA --- */
+        header {
+            background: #161622;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #232336;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand i {
+            color: #3b82f6;
+            font-size: 1.25rem;
+        }
+
+        .brand h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+
+        .connection-badge {
+            font-size: 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* --- ZONA CENTRAL: ESCÁNER --- */
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            position: relative;
+            background: radial-gradient(circle at center, #111118 0%, #0d0d12 100%);
+        }
+
+        .scanner-viewport {
+            width: 100%;
+            max-width: 320px;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            background: #161622;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            border: 1px solid #232336;
+        }
+
+        /* Elemento crudo de video gestionado por Html5Qrcode */
+        #reader {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
+
+        #reader video {
+            object-fit: cover !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* --- MÁSCARA UX SUPERPUESTA (Mira de Enfoque + Láser) --- */
+        .scanner-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        .reticle {
+            width: 75%;
+            height: 75%;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            position: relative;
+            box-shadow: 0 0 0 4000px rgba(13, 13, 18, 0.45); /* Oscurece las esquinas fuera de la mira */
+        }
+
+        /* Esquinas iluminadas de la mira de enfoque */
+        .reticle::before, .reticle::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-color: #3b82f6;
+            border-style: solid;
+            pointer-events: none;
+        }
+
+        /* Esquinas superior izquierda e inferior derecha */
+        .reticle::before {
+            top: -2px; left: -2px;
+            border-width: 3px 0 0 3px;
+            border-top-left-radius: 12px;
+        }
+        /* Esquinas inferior izquierda e superior derecha */
+        .reticle::after {
+            bottom: -2px; right: -2px;
+            border-width: 0 3px 3px 0;
+            border-bottom-right-radius: 12px;
+        }
+
+        /* Animación del Haz Láser de Escaneo */
+        .laser-line {
+            position: absolute;
+            width: 90%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #3b82f6, #60a5fa, #3b82f6, transparent);
+            left: 5%;
+            top: 10%;
+            box-shadow: 0 0 12px #3b82f6;
+            animation: scanning 2.5s ease-in-out infinite;
+        }
+
+        @keyframes scanning {
+            0%, 100% { top: 12%; opacity: 0.3; }
+            50% { top: 88%; opacity: 1; }
+        }
+
+        /* --- BARRA DE ESTADO (FOOTER) --- */
+        footer {
+            background: #161622;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #232336;
+            z-index: 10;
+        }
+
+        .status-container {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 10px 20px;
+            border-radius: 12px;
+            background: #0d0d12;
+            width: 100%;
+            max-width: 360px;
+            border: 1px solid #1f1f2e;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- MODAL FLOTANTE (REGISTRO RÁPIDO) --- */
+        .modal-mask {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(9, 9, 11, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: flex-end; /* Mobile-first sheet layout */
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        @media (min-width: 480px) {
+            .modal-mask { align-items: center; padding: 20px; }
+        }
+
+        .modal-mask.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-wrapper {
+            background: #161622;
+            width: 100%;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 24px 34px 24px;
+            border-top: 1px solid #2b2b3d;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @media (min-width: 480px) {
+            .modal-wrapper {
+                border-radius: 24px;
+                border: 1px solid #2b2b3d;
+                max-width: 400px;
+                transform: scale(0.9) translateY(0);
+                padding: 28px;
+            }
+        }
+
+        .modal-mask.active .modal-wrapper {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header i {
+            color: #f59e0b;
+            font-size: 1.4rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        /* --- FORMULARIO SEMÁNTICO --- */
+        .form-row {
+            margin-bottom: 16px;
+        }
+
+        .form-row label {
+            display: block;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 14px;
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 14px 12px 40px;
+            background: #0d0d12;
+            border: 1px solid #232336;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .form-control[readonly] {
+            background: #111118;
+            color: #6b7280;
+            border-style: dashed;
+        }
+
+        /* Grid específico para inputs numéricos lado a lado */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* --- BOTONES DE ACCIÓN (CON ICONOS) --- */
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.2s, transform 0.1s;
         }
-        #status { 
-            margin-top: 30px; 
-            font-size: 1.4em; 
-            height: 50px;
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-submit {
+            background: #10b981;
+            color: #ffffff;
+        }
+
+        .btn-cancel {
+            background: #232336;
+            color: #d1d5db;
         }
     </style>
 </head>
 <body>
-    <h2>Caja Registradora</h2>
-    <p>Apunta la cámara al código QR del producto</p>
 
-    <div id="reader"></div>
-    
-    <div id="status">Esperando escaneo...</div>
-    
-    <script>
-        const status = document.getElementById('status');
-        let ultimoEscaneado = ""; 
+    <header>
+        <div class="brand">
+            <i class="fa-solid fa-expand"></i>
+            <h1>POS Scanner</h1>
+        </div>
+        <div class="connection-badge">
+            <i class="fa-solid fa-wifi"></i> Online
+        </div>
+    </header>
 
-        // 🛠️ ACTUALIZA ESTA IP CON LA DE TU PC (REVISA CON 'ipconfig')
-        const IP_SERVIDOR = "192.168.0.10"; 
-        const PUERTO_SSL = "3001";
-
-        function onScanSuccess(textoEscaneado, decodedResult) {
-            // Evita lecturas masivas del mismo código por 3 segundos
-            if (textoEscaneado === ultimoEscaneado) return;
-            ultimoEscaneado = textoEscaneado;
-            setTimeout(() => ultimoEscaneado = "", 3000); 
-
-            status.innerHTML = "<span style='color:#f1c40f'>⏳ Procesando escaneo...</span>";
-
-            // Al usar QRs limpios, enviamos el texto directamente en la URL
-            const urlFinal = `https://${IP_SERVIDOR}:${PUERTO_SSL}/api/escanear/${textoEscaneado}`;
+    <main>
+        <div class="scanner-viewport">
+            <div id="reader"></div>
             
-            fetch(urlFinal)
-                .then(res => {
-                    if (res.status === 404) {
-                        throw new Error('NOT_FOUND');
+            <div class="scanner-overlay">
+                <div class="reticle">
+                    <div class="laser-line"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div id="status-bar" class="status-container" style="color: #60a5fa;">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+            <span>Inicializando módulo de cámara...</span>
+        </div>
+    </footer>
+
+    <div class="modal-mask" id="register-modal">
+        <div class="modal-wrapper">
+            <div class="modal-header">
+                <i class="fa-solid fa-box-open"></i>
+                <h2>Producto no registrado</h2>
+            </div>
+            
+            <form id="quick-register-form">
+                <div class="form-row">
+                    <label>Código Detectado</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-barcode"></i>
+                        <input type="text" id="prod-barcode" class="form-control" readonly>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label>Descripción / Nombre</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-tag"></i>
+                        <input type="text" id="prod-name" class="form-control" placeholder="Ej. Sabritas Adobadas 45g" required autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label>Precio de Venta</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-dollar-sign"></i>
+                            <input type="number" step="0.01" id="prod-price" class="form-control" placeholder="0.00" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>Stock Inicial</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <input type="number" id="prod-stock" class="form-control" placeholder="0" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-cancel" id="btn-close-modal">
+                        <i class="fa-solid fa-xmark"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-submit">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar Alta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- ELEMENTOS DOM ---
+        const statusBar = document.getElementById('status-bar');
+        const modal = document.getElementById('register-modal');
+        const registerForm = document.getElementById('quick-register-form');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        
+        // --- ESTADO LOCAL ---
+        let html5QrCodeInstance = null;
+        let lastScannedCode = "";
+        let isThrottleActive = false;
+
+        // 🔊 FUNCIÓN PARA GENERAR SONIDO DE ESCANEO (BEEP)
+        function reproducirBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = 'sine'; // Tipo de onda suave
+                oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // Frecuencia en Hz (un tono agudo y limpio)
+                
+                // Controlar la duración y volumen para que no sea molesto
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volumen al 10%
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.1); // Desvanecimiento en 0.1 segundos
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1); // Detener el sonido
+            } catch (error) {
+                console.error("No se pudo reproducir el sonido de escaneo:", error);
+            }
+        }
+
+        // --- ENDPOINTS CONFIGURACIÓN ---
+        const SERVER_IP = "192.168.0.10"; // Reemplazar con tu IP local de desarrollo
+        const SSL_PORT = "3001";
+        const API_BASE = `https://${SERVER_IP}:${SSL_PORT}`;
+
+        // --- MANEJADORES DE ESTADO VISUAL ---
+        function setStatus(type, text) {
+            statusBar.style.transform = "scale(0.97)";
+            setTimeout(() => {
+                statusBar.style.transform = "scale(1)";
+                if (type === 'waiting') {
+                    statusBar.style.borderColor = "#1f1f2e";
+                    statusBar.style.color = "#60a5fa";
+                    statusBar.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>${text}</span>`;
+                } else if (type === 'success') {
+                    statusBar.style.borderColor = "rgba(16, 185, 129, 0.3)";
+                    statusBar.style.color = "#10b981";
+                    statusBar.innerHTML = `<i class="fa-solid fa-circle-check animate-bounce"></i> <span>${text}</span>`;
+                } else if (type === 'error') {
+                    statusBar.style.borderColor = "rgba(239, 68, 68, 0.3)";
+                    statusBar.style.color = "#ef4444";
+                    statusBar.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${text}</span>`;
+                } else if (type === 'alert') {
+                    statusBar.style.borderColor = "rgba(245, 158, 11, 0.3)";
+                    statusBar.style.color = "#f59e0b";
+                    statusBar.innerHTML = `<i class="fa-solid fa-folder-plus"></i> <span>${text}</span>`;
+                }
+            }, 100);
+        }
+
+        // --- ORQUESTACIÓN DEL ESCÁNER ---
+        function startCameraAutomated() {
+            html5QrCodeInstance = new Html5Qrcode("reader");
+            
+            // Lógica directa sin dibujar layouts intermedios de la librería
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length > 0) {
+                    html5QrCodeInstance.start(
+                        { facingMode: "environment" }, // Forzar cámara trasera del celular
+                        {
+                            fps: 15,
+                            qrbox: (width, height) => {
+                                return { width: width * 0.75, height: height * 0.75 };
+                            }
+                        },
+                        onBarcodeReadSuccess,
+                        onBarcodeReadFailure
+                    ).then(() => {
+                        setStatus('waiting', 'Listo para escanear código QR / barras');
+                    }).catch(err => {
+                        console.error(err);
+                        setStatus('error', 'Error al enlazar sensor de cámara');
+                    });
+                } else {
+                    setStatus('error', 'No se detectaron lentes ópticos en el dispositivo');
+                }
+            }).catch(err => {
+                console.error(err);
+                setStatus('error', 'Permiso denegado de acceso a la cámara');
+            });
+        }
+
+        // --- CALLBACK: LECTURA EXITOSA (CON DEBOUNCE / THROTTLE PROFESIONAL) ---
+        function onBarcodeReadSuccess(decodedText) {
+            if (isThrottleActive || decodedText === lastScannedCode) return;
+
+            // Bloquear lecturas repetidas instantáneas (Debounce de 3.5 segundos)
+            isThrottleActive = true;
+            lastScannedCode = decodedText;
+            setTimeout(() => { 
+                lastScannedCode = ""; 
+                isThrottleActive = false;
+            }, 3500);
+
+            // 🔊 ¡Aquí disparamos el sonido y la vibración!
+            reproducirBeep();
+            if (navigator.vibrate) navigator.vibrate(80);
+
+            setStatus('waiting', 'Buscando en catálogo...');
+
+
+            // Fetch estructurado
+            const endpoint = `${API_BASE}/api/escanear/${encodeURIComponent(decodedText)}`;
+            
+            fetch(endpoint)
+                .then(response => {
+                    if (response.status === 404) {
+                        triggerQuickRegister(decodedText);
+                        throw new Error('PRODUCT_NOT_FOUND');
                     }
-                    if (!res.ok) {
-                        throw new Error('SERVER_ERROR');
-                    }
-                    return res.json();
+                    if (!response.ok) throw new Error('NETWORK_OR_SERVER_ERROR');
+                    return response.json();
                 })
                 .then(data => {
-                    // Esto te abrirá una ventana emergente en el celular mostrando el JSON real que llega
-                    // alert(JSON.stringify(data)); 
-
-                    if (data && data.success && data.producto && data.producto.nombre) {
-                        status.innerHTML = `<b style='color:#2ecc71'>✅ ¡${data.producto.nombre.toUpperCase()} ENVIADO!</b>`;
-                    } else {
-                        status.innerHTML = "<b style='color:#e74c3c'>❌ RESPUESTA INVÁLIDA DEL SERVIDOR</b>";
+                    if (data && data.success && data.producto) {
+                        const nombreProd = data.producto.nombre || 'Producto';
+                        setStatus('success', `Despachado: ${nombreProd.toUpperCase()}`);
                     }
                 })
+                .catch(error => {
+                    if (error.message !== 'PRODUCT_NOT_FOUND') {
+                        setStatus('error', 'Fallo de comunicación con el nodo POS');
+                        console.error(error);
+                    }
+                });
         }
 
-        function onScanFailure(error) {
-            // Se mantiene vacío para silenciar logs continuos de enfoque de cámara
+        function onBarcodeReadFailure(error) {
+            // Silenciado intencional para optimizar hilos de ejecución CPU móvil 
+            // durante fallas de enfoque dinámico continuo.
         }
 
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader",
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            false
-        );
-        
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        // --- CONTROL DEL MODAL & FORMULARIO ---
+        function triggerQuickRegister(barcode) {
+            setStatus('alert', `Código nuevo detectado: ${barcode}`);
+            document.getElementById('prod-barcode').value = barcode;
+            
+            // Reiniciar inputs del formulario
+            document.getElementById('prod-name').value = "";
+            document.getElementById('prod-price').value = "";
+            document.getElementById('prod-stock').value = "";
+            
+            modal.classList.add('active');
+            document.getElementById('prod-name').focus();
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+            setStatus('waiting', 'Escáner reanudado. Esperando artículo...');
+        }
+
+        btnCloseModal.addEventListener('click', closeModal);
+
+        registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const payload = {
+                codigo_barras: document.getElementById('prod-barcode').value,
+                nombre: document.getElementById('prod-name').value.trim(),
+                precio: parseFloat(document.getElementById('prod-price').value),
+                stock: parseInt(document.getElementById('prod-stock').value, 10),
+                id_proveedor: 1 // Payload estándar mapeado
+            };
+
+            setStatus('waiting', 'Consolidando registro en base de datos...');
+
+            fetch(`${API_BASE}/api/productos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('DB_WRITE_ERROR');
+                return res.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    setStatus('success', `Registrado y despachado: ${payload.nombre.toUpperCase()}`);
+                    closeModal();
+                } else {
+                    setStatus('error', `Rechazado: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                setStatus('error', 'Fallo de red al asentar el alta');
+                console.error(err);
+            });
+        });
+
+        // --- DISPARO AUTOMATIZADO AL CARGAR EL DOM ---
+        document.addEventListener('DOMContentLoaded', startCameraAutomated);
     </script>
 </body>
 </html>
