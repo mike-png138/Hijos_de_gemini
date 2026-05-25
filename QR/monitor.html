@@ -2,71 +2,46 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor de Ventas</title>
-    <!-- Importa la librería cliente de socket.io desde el servidor de Node -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { 
-            font-family: sans-serif; 
-            text-align: center; 
-            background-color: #1e1e24; 
-            color: white;
-            padding: 50px; 
-        }
-        .card { 
-            background: #2b2b36; 
-            padding: 40px; 
-            border-radius: 15px; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3); 
-            display: inline-block; 
-            min-width: 350px; 
-            margin-top: 20px;
-        }
-        .precio { font-size: 2.5em; color: #2ecc71; font-weight: bold; margin: 15px 0; }
-        .stock { color: #bdc3c7; font-size: 1.2em; }
-        .error { color: #e74c3c; font-weight: bold; font-size: 1.1em; }
-        .exito { color: #2ecc71; font-weight: bold; font-size: 1.1em; }
+        body { font-family: sans-serif; background: #1e1e24; color: white; padding: 20px; text-align: center; }
+        .card { background: #2b2b36; padding: 30px; border-radius: 15px; display: inline-block; min-width: 350px; margin-bottom: 20px; }
+        .precio { font-size: 2.5em; color: #2ecc71; font-weight: bold; }
+        .cart-container { background: #2b2b36; padding: 20px; border-radius: 15px; max-width: 600px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; border-bottom: 1px solid #444; }
+        button { background: #3498db; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 5px; }
+        .btn-eliminar { background: #fcfcfc; padding: 5px 10px; }
     </style>
 </head>
 <body>
+<h1>Monitor de Ventas</h1>
 
-    <h1>Pantalla de Visualización</h1>
-    <p>Los productos escaneados se mostrarán aquí abajo en tiempo real</p>
-    
-    <div class="card">
-        <h2 id="prod-nombre">Esperando escaneo...</h2>
-        <p class="precio" id="prod-precio">$0.00</p>
-        <p class="stock" id="prod-stock">Stock: --</p>
-        <p id="mensaje-estado"></p>
-    </div>
+<div class="card">
+    <h2 id="prod-nombre">Esperando escaneo...</h2>
+    <p class="precio" id="prod-precio">$0.00</p>
+    <p id="prod-stock">Stock: --</p>
+</div>
 
-    <script>
-        // Inicializa la conexión en tiempo real con el servidor
-        const socket = io();
+<div class="cart-container">
+    <h2>Carrito de Ventas</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Producto</th>
+            <th>Precio</th>
+            <th>Cant</th>
+            <th>Subtotal</th>
+            <th>Eliminar:</th>
+        </tr>
+        </thead>
+        <tbody id="listaCarrito"></tbody>
+    </table>
+    <h3>Total: $<span id="totalVenta">0.00</span></h3>
+    <button id="btnCobrar">Cobrar</button>
+</div>
 
-        const txtNombre = document.getElementById('prod-nombre');
-        const txtPrecio = document.getElementById('prod-precio');
-        const txtStock = document.getElementById('prod-stock');
-        const txtEstado = document.getElementById('mensaje-estado');
-
-        // Escucha si el servidor encuentra un producto
-        socket.on('nuevo-producto-escaneado', (producto) => {
-            txtNombre.textContent = producto.nombre.toUpperCase();
-            txtPrecio.textContent = `$${parseFloat(producto.precio).toFixed(2)}`;
-            txtStock.textContent = `Stock disponible: ${producto.stock}`;
-            txtEstado.textContent = "✅ Producto recibido correctamente";
-            txtEstado.className = "exito";
-        });
-
-        // Escucha si el producto escaneado no existe
-        socket.on('producto-no-encontrado', (data) => {
-            txtNombre.textContent = "Producto no registrado";
-            txtPrecio.textContent = "$0.00";
-            txtStock.textContent = `Código: ${data.codigo}`;
-            txtEstado.textContent = "❌ El artículo no existe en la base de datos.";
-            txtEstado.className = "error";
-        });
-    </script>
+<script src="monitor.js"></script>
 </body>
 </html>
