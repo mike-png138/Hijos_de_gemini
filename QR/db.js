@@ -9,7 +9,6 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 
 const buscarProductoPorCodigo = (codigo_barras) => {
     return new Promise((resolve, reject) => {
-        // CORRECCIÓN: Agregamos ID_PRODUCTO y CODIGO_BARRAS para que el carrito sepa qué cobrar
         const sql = `SELECT ID_PRODUCTO, CODIGO_BARRAS, NOMBRE AS nombre, PRECIO AS precio, STOCK AS stock FROM PRODUCTO WHERE CODIGO_BARRAS = ?`;
         db.get(sql, [codigo_barras], (err, row) => {
             if (err) reject(err);
@@ -73,6 +72,22 @@ const obtenerCorteDeCajaDelDia = () => {
     });
 };
 
+
+const loginDueño = (nombre, telefono) => {
+    return new Promise((resolve, reject) => {
+        const sql = `SELECT ID_DUEÑO, NOMBRE FROM DUEÑO WHERE NOMBRE = ? AND TELEFONO = ?`;
+        db.get(sql, [nombre, telefono], (err, row) => {
+            if (err) reject(err);
+            else resolve(row); 
+        });
+    });
+};
+
 module.exports = {
-    db, buscarProductoPorCodigo, insertarProducto, registrarVentaCompleta, obtenerCorteDeCajaDelDia
+    db, 
+    buscarProductoPorCodigo, 
+    insertarProducto, 
+    registrarVentaCompleta, 
+    obtenerCorteDeCajaDelDia,
+    loginDueño
 };
